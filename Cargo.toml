@@ -1,0 +1,17 @@
+[package]
+name = "eventful"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+async-trait = "0.1.66"
+aws-config = "0.54.1"
+aws-sdk-sqs = "0.24.0"
+serde = { version="1.0.147", features = ["derive"] }
+serde_json = "1.0.94"
+tokio = { version = "1.22.0", features = ["full"] }
+tokio-nsq = "0.13.0"
+hyperactive = {path = "../hyperactive"}
+
