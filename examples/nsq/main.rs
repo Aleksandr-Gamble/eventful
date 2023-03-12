@@ -3,7 +3,7 @@ use tokio::{time::sleep};
 use tokio_nsq::{NSQTopic, NSQChannel, NSQConsumerConfig, NSQConsumerConfigSources, NSQConsumerLookupConfig};
 use rand::{Rng, distributions::{Alphanumeric, DistString}};
 use serde::{Serialize, Deserialize};
-use eventful::{err::GenericError, nsq::{DaemonNSQ, EventNSQ, GenConsumer}};
+use eventful::{err::GenericError, nsq::{DaemonNSQ, EventNSQ, ChannelConsumer}};
 
 
 #[derive(Serialize, Deserialize)]
@@ -21,7 +21,7 @@ impl EventNSQ for UserClickedSomething {
 pub struct ClickProcessor{}
 
 
-impl eventful::nsq::GenConsumer<UserClickedSomething> for ClickProcessor {
+impl eventful::nsq::ChannelConsumer<UserClickedSomething> for ClickProcessor {
     fn channel(&self) -> String {
         format!("some_channel")
     }
@@ -44,14 +44,16 @@ impl ClickProcessor {
 async fn simulate_clicks() -> Result<(), GenericError> {
     let nsqd = DaemonNSQ::new("http://127.0.0.1:4151");
     loop {
-        let millis: u64 = rand::thread_rng().gen_range(10..750);
-        let user_id = rand::thread_rng().gen_range(0..1000);
-        let clicked_on: String = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+        let millis: u64 = rand::thread_rng().gen_range(300..1200);
+        let count: u64 = rand::thread_rng().gen_range(1..4);
         sleep(Duration::from_millis(millis)).await;
-        let event = UserClickedSomething{user_id, clicked_on};
-        println!("PRODUCE: user_id={} clicked_on='{}'", &event.user_id, &event.clicked_on);
-        let _x = event.publish_to(&nsqd.host).await?;
-
+        for _ in 0..count {
+            let user_id = rand::thread_rng().gen_range(0..1000);
+            let clicked_on: String = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+            let event = UserClickedSomething{user_id, clicked_on};
+            println!("PRODUCE: user_id={} clicked_on='{}'", &event.user_id, &event.clicked_on);
+            let _x = event.publish_to(&nsqd.host).await?;
+        }
     }
     Ok(())
 }

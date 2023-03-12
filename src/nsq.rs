@@ -1,3 +1,5 @@
+//! The NSQ module make it easy to produce and consume events using the [NSQ messaging platform](https://nsq.io/)
+ 
 
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
@@ -6,10 +8,7 @@ use hyperactive;
 use crate::err::GenericError;
 
 
-pub struct EventMessage<T> {
-    pub message: tokio_nsq::NSQMessage,
-    pub event: T
-}
+/// The DaemonNSQ struct stores the host information for one [nsqd daemon](https://nsq.io/components/nsqd.html) 
 pub struct DaemonNSQ {
     pub host: String,
 }
@@ -24,10 +23,29 @@ impl DaemonNSQ {
 }
 
 
-/// This is such an elegant trait.  
-/// If serialize + deserialize are already implemented on a struct,
-/// All you have to do is define a topic to publish the message to NSQ.
-/// Then you can call .publish(hsqd_host) asynchronously to publish the event.
+/// This elegant trait makes it super simple to send a struct as an event.  
+/// If a struct implements Serialize + DeserializeOwned, 
+/// all you have to do is define a topic to publish the message to NSQ.  
+/// Then you can call .publish_to(host) asynchronously to publish the event.
+/// # Examples:
+/// ```
+/// use serde::{Serialize, Deserialize};
+/// 
+/// #[derive(Serialize, Deserialize)]
+/// struct UserClickedSomething {
+///     user_id: i32, 
+///     clicked_on: String,
+/// }
+/// 
+/// impl EventNSQ for UserClickedSomething {
+///     fn topic() -> &'static str {
+///         "website_clicks"
+///     }
+/// }
+/// 
+/// let click = UserClickedSomething{user_id: 5, clicked_on: "some_button".to_string()};
+/// click.publish_to("http://127.0.0.1:4151").await.unwrwap();
+/// ```
 #[async_trait]
 pub trait EventNSQ: Serialize + DeserializeOwned {
     fn topic() -> &'static str;
@@ -39,7 +57,53 @@ pub trait EventNSQ: Serialize + DeserializeOwned {
 }
 
 
-pub trait GenConsumer<T: EventNSQ> {
+
+/// The ChannelConsumer trait can be instantiated on a struct to make it easy to
+/// (1) Generate a tokio_nsq::NSQConsumer, via the .consumer() method
+/// (2) Deserialize events from the body of a tokio_nsq::NSQMessage, via the .deserialize_event(&message) method.  
+/// NOTE: This trait does not manage the async processing of messages:
+/// The function signature required to do so would be (1) cumbersome to implement, and
+/// (2) might not be ideal for all use cases.  
+/// A common use case might be to implement ChannelConsumer<T: EventNSQ>
+/// Then implement a custom async fn run(&self) -> Result<(), GenericError> or similar.
+/// # Examples:
+/// ```
+/// use serde::{Serialize, Deserialize};
+/// 
+/// #[derive(Serialize, Deserialize)]
+/// struct UserClickedSomething {
+///     user_id: i32, 
+///     clicked_on: String,
+/// }
+/// 
+/// impl EventNSQ for UserClickedSomething {
+///     fn topic() -> &'static str {
+///         "website_clicks"
+///     }
+/// }
+/// 
+/// struct ClickConsumer{}
+/// 
+/// impl ChannelConsumer<UserClickedSomething> for ClickConsumer P
+///     fn channel(&sefl) -> String {
+///         "first_chanel".to_string()
+///     }
+/// }
+/// 
+/// impl ClickProcessor {
+///     async fn run(&self) -> Result<(), GenericError> {
+///         let mut consumer = self.consumer();
+///         loop {
+///             let message = consumer.consume_filtered().await.unwrap();
+///             let event = self.deserialize_event(&message)?;
+///             println!("    CONSUME:  user_id={} clicked_on='{}'", &event.user_id, &event.clicked_on);
+///             message.finish().await;
+///         }
+///         Ok(())
+///     }
+/// }
+/// ```
+pub trait ChannelConsumer<T: EventNSQ> {
     /// This method must be implemented to set the channel 
     /// It is the only one that does not have a default implementation
     fn channel(&self) -> String;
