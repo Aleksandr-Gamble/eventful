@@ -1,6 +1,6 @@
 //! The NSQ module make it easy to produce and consume events using the [NSQ messaging platform](https://nsq.io/)
  
-
+use std::env;
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 use tokio_nsq;
@@ -53,6 +53,14 @@ pub trait EventNSQ: Serialize + DeserializeOwned {
         let topic =  <Self as EventNSQ>::topic();
         let _x = post_json(host, &topic, &self).await?;
         Ok(())
+    }
+    /// Publish, using an environment variable for the NSQ host
+    async fn publish_env(&self, var: &str) -> Result<(), GenericError> {
+        let host = match env::var(var) {
+            Ok(val) => val,
+            Err(_) => "http://127.0.0.1:4151".to_string(),
+        };
+        self.publish_to(&host).await
     }
 }
 
@@ -118,10 +126,7 @@ pub trait ChannelConsumer<T: EventNSQ> {
         let channel = tokio_nsq::NSQChannel::new(&self.channel()).unwrap();
         let config_source = self.config_source();
         let config = tokio_nsq::NSQConsumerConfig::new(topic, channel)
-            // the consumer only lets you get one message at a time
-            // why then have the max_in_flight parameter? It just sends everything to in-flight, only to be re-queued
-            // just leaving it at 1 is slow but works 
-            .set_max_in_flight(1)
+            .set_max_in_flight(15)
             .set_sources(config_source);
         config.build()
     }
