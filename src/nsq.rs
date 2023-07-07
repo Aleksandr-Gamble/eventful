@@ -202,7 +202,7 @@ pub trait ChannelConsumer<T: EventNSQ> {
         config.build()
     }
 
-    fn deserialize_event(&self, message: &tokio_nsq::NSQMessage) -> Result<T, GenericError> {
+    fn deserialize_event(&self, message: &tokio_nsq::NSQMessage) -> Result<T, serde_json::Error> {
         let event: T = serde_json::from_slice(&message.body)?;
         Ok(event)
     }
