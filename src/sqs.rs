@@ -91,7 +91,7 @@ impl ClientSQS {
     pub async fn publish<T: Event>(&self, event: &T) -> Result<String, GenericError> {
         let body = serde_json::to_string(event)?;
         let send_msg = match event.group_id() {
-            Some(group_id) => { self.client
+            Some(_group_id) => { self.client
                 .send_message()
                 .queue_url(<T as Event>::queue_url())
                 .message_body(body)
