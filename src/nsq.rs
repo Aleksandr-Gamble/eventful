@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 use tokio_nsq;
 use hyperactive;
-use crate::err::GenericError;
+use crate::err::EventfulError;
 
 
 /// let urls be a list of NSQD instances, separated by commas (,)
@@ -118,12 +118,12 @@ impl FleetNSQ {
 #[async_trait]
 pub trait EventNSQ: Serialize + DeserializeOwned {
     fn topic() -> &'static str;
-    async fn publish_to_url(&self, host: &str) -> Result<(), GenericError>  {
+    async fn publish_to_url(&self, host: &str) -> Result<(), EventfulError>  {
         let topic =  <Self as EventNSQ>::topic();
         let _x = post_json(host, &topic, &self).await?;
         Ok(())
     }
-    async fn publish_to(&self, daemon: &Daemon) -> Result<(), GenericError> {
+    async fn publish_to(&self, daemon: &Daemon) -> Result<(), EventfulError> {
         self.publish_to_url(&daemon.pub_url).await
     }
 }
@@ -137,7 +137,7 @@ pub trait EventNSQ: Serialize + DeserializeOwned {
 /// The function signature required to do so would be (1) cumbersome to implement, and
 /// (2) might not be ideal for all use cases.  
 /// A common use case might be to implement ChannelConsumer<T: EventNSQ>
-/// Then implement a custom async fn run(&self) -> Result<(), GenericError> or similar.
+/// Then implement a custom async fn run(&self) -> Result<(), EventfulError> or similar.
 /// # Examples:
 /// ```
 /// use serde::{Serialize, Deserialize};
@@ -163,7 +163,7 @@ pub trait EventNSQ: Serialize + DeserializeOwned {
 /// }
 /// 
 /// impl ClickProcessor {
-///     async fn run(&self) -> Result<(), GenericError> {
+///     async fn run(&self) -> Result<(), EventfulError> {
 ///         let mut consumer = self.consumer();
 ///         loop {
 ///             let message = consumer.consume_filtered().await.unwrap();
@@ -209,19 +209,19 @@ pub trait ChannelConsumer<T: EventNSQ> {
 }
 
 
-pub async fn post_json<T: Serialize>(host: &str, topic: &str, body: &T) -> Result<(), GenericError> {
+pub async fn post_json<T: Serialize>(host: &str, topic: &str, body: &T) -> Result<(), EventfulError> {
     let url = format!("{}/pub?topic={}", &host, topic);
     let _x: () = hyperactive::client::post_noback(&url, &body, None).await?;
     Ok(())
 }
 
 
-pub async fn post_event<T: EventNSQ>(url: &str, event: &T) -> Result<(), GenericError> {
+pub async fn post_event<T: EventNSQ>(url: &str, event: &T) -> Result<(), EventfulError> {
     let topic = <T as EventNSQ>::topic();
     post_json(url, topic, event).await
 }
 
-pub async fn post_to<T: EventNSQ>(event: &T, daemon: &Daemon) -> Result<(), GenericError> {
+pub async fn post_to<T: EventNSQ>(event: &T, daemon: &Daemon) -> Result<(), EventfulError> {
     post_event(&daemon.pub_url, event).await
 }
 

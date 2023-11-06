@@ -3,7 +3,7 @@ pub use aws_config;
 pub use aws_sdk_sqs::{model::Message, Client, Region};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json;
-use crate::err::{GenericError, EventError};
+use crate::err::EventfulError;
 
 
 pub trait Event: Serialize + DeserializeOwned {
@@ -30,7 +30,7 @@ impl ClientSQS {
         ClientSQS{client}
     }
 
-    pub async fn poll_messages(&self, queue_url: &str, delete_on_receipt: bool) -> Result<Vec<Message>, GenericError> {
+    pub async fn poll_messages(&self, queue_url: &str, delete_on_receipt: bool) -> Result<Vec<Message>, EventfulError> {
         let message_batch = self.client
             .receive_message()
             .queue_url(queue_url)
@@ -57,7 +57,7 @@ impl ClientSQS {
 
     
     /// Return the body of messages as strings
-    pub async fn poll_strings(&self, queue_url: &str, delete_on_receipt: bool) -> Result<Vec<String>, GenericError> {
+    pub async fn poll_strings(&self, queue_url: &str, delete_on_receipt: bool) -> Result<Vec<String>, EventfulError> {
         let messages = self.poll_messages(queue_url, delete_on_receipt).await?;
         let mut resp = Vec::new();
         for message in messages {
@@ -69,17 +69,17 @@ impl ClientSQS {
 
 
     /// Return the body of messages as deserializable structs
-    pub async fn poll<T: Event>(&self, delete_on_receipt: bool) -> Result<Vec<T>, GenericError> {
+    pub async fn poll<T: Event>(&self, delete_on_receipt: bool) -> Result<Vec<T>, EventfulError> {
         let messages = self.poll_messages(T::queue_url(), delete_on_receipt).await?;
         let mut resp = Vec::new();
         for message in messages {
             let body = &message.body.unwrap_or_default();
-            let jz: T = match serde_json::from_str(body) {
+            let jz: T = serde_json::from_str(body)?; /* {
                 Ok(val) => val,
                 Err(_) => {
-                    return Err(EventError{msg:"JSON dserialization error".to_string()}.into())
+                    return Err(EventfulError{msg:"JSON dserialization error".to_string()}.into())
                 }
-            };
+            };*/
             resp.push(jz)
         }
         Ok(resp)
@@ -88,7 +88,7 @@ impl ClientSQS {
 
 
     /// publish a message (could be a string or serializable struct) to the queue with a given group_id
-    pub async fn publish<T: Event>(&self, event: &T) -> Result<String, GenericError> {
+    pub async fn publish<T: Event>(&self, event: &T) -> Result<String, EventfulError> {
         let body = serde_json::to_string(event)?;
         let send_msg = match event.group_id() {
             Some(_group_id) => { self.client
@@ -104,8 +104,8 @@ impl ClientSQS {
         };
         let output = send_msg.send().await?;
         let message_id = output
-            .message_id
-            .ok_or(EventError{msg: "push request did not return a message_id!".to_string()})?;  
+            .message_id.unwrap();
+            //.ok_or(EventfulError{msg: "push request did not return a message_id!".to_string()})?;  
         Ok(message_id)
     }
 }
