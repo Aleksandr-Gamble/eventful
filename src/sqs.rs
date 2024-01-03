@@ -69,8 +69,8 @@ impl ClientSQS {
 
 
     /// Return the body of messages as deserializable structs
-    pub async fn poll<T: Event>(&self, delete_on_receipt: bool) -> Result<Vec<T>, EventfulError> {
-        let messages = self.poll_messages(T::queue_url(), delete_on_receipt).await?;
+    pub async fn poll<T: DeserializeOwned>(&self, queue_url: &str, delete_on_receipt: bool) -> Result<Vec<T>, EventfulError> {
+        let messages = self.poll_messages(queue_url, delete_on_receipt).await?;
         let mut resp = Vec::new();
         for message in messages {
             let body = &message.body.unwrap_or_default();
