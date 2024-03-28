@@ -197,7 +197,7 @@ pub trait ChannelConsumer<T: EventNSQ> {
         let channel = tokio_nsq::NSQChannel::new(&self.channel()).unwrap();
         let config_source = self.config_source(daemons);
         let config = tokio_nsq::NSQConsumerConfig::new(topic, channel)
-            .set_max_in_flight(15)
+            .set_max_in_flight(10)
             .set_sources(config_source);
         config.build()
     }
